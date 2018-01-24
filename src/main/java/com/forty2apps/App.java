@@ -1,5 +1,6 @@
 package com.forty2apps;
 
+import java.net.Authenticator;
 import java.nio.file.Paths;
 import java.util.Collections;
 import org.cfg4j.provider.ConfigurationProvider;
@@ -14,10 +15,10 @@ import org.telegram.telegrambots.exceptions.TelegramApiException;
 class App {
 
   public static void main(String... args) {
-    ApiContextInitializer.init();
     TelegramBotsApi telegramBotsApi = new TelegramBotsApi();
+
     try {
-      telegramBotsApi.registerBot(new WebTextBot(getBotConfig()));
+      telegramBotsApi.registerBot(new BruCityBot(getBotConfig()));
     } catch (TelegramApiException e) {
       e.printStackTrace();
     }

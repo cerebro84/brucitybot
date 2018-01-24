@@ -6,6 +6,9 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.util.regex.Pattern;
+
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
@@ -15,9 +18,9 @@ import org.apache.tika.parser.html.HtmlParser;
 import org.apache.tika.sax.BodyContentHandler;
 import org.xml.sax.SAXException;
 
-class WebTextExtractor {
+class MoreRecentRDVChecker {
 
-  public String parseToPlainText(String url) throws IOException, SAXException, TikaException {
+  public String parseToPlainText(String url) throws IOException {
     final BoilerpipeContentHandler handler = new BoilerpipeContentHandler(new BodyContentHandler(),
         ArticleExtractor.INSTANCE);
     final HtmlParser parser = new HtmlParser();
@@ -46,12 +49,10 @@ class WebTextExtractor {
     }
 
     try (InputStream stream = new URL(url).openStream()) {
-      parser.parse(stream, handler, metadata, parseContext);
-      String text = handler.getTextDocument().getText(true, false);
-      if (StringUtils.isEmpty(text)) {
-        return handler.getTextDocument().getText(true, true);
-      }
-      return text;
+      final String html = IOUtils.toString(stream, "UTF-8");
+      Pattern pattern = Pattern.compile(".*\\n.*format: 'yyyy-mm-dd',\n.*date: '(.*)'");
+      final String group = pattern.matcher(html).group();
+      return group;
     }
   }
 

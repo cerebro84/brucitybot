@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.forty2apps</groupId>
-    <artifactId>webtextbot</artifactId>
+    <artifactId>brucitybot</artifactId>
     <version>1.0-SNAPSHOT</version>
     <properties>
         <maven-compiler-plugin-version>3.7.0</maven-compiler-plugin-version>
