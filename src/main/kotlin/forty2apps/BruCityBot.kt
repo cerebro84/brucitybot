@@ -3,6 +3,7 @@ package forty2apps
 import org.apache.commons.validator.routines.UrlValidator
 import org.apache.logging.log4j.LogManager
 import org.telegram.telegrambots.api.methods.send.SendMessage
+import org.telegram.telegrambots.api.objects.Chat
 import org.telegram.telegrambots.api.objects.Message
 import org.telegram.telegrambots.api.objects.Update
 import org.telegram.telegrambots.bots.TelegramLongPollingBot
@@ -14,11 +15,12 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import kotlin.collections.HashMap
 
 internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollingBot() {
     private val urlValidator = UrlValidator()
     private val moreRecentRDVChecker = MoreRecentRDVChecker()
-    private val cache: MutableMap<Long, MutableMap<String, String>> = mutableMapOf()
+    private val cache: MutableMap<Long, MutableMap<String, Any>> = mutableMapOf()
 
     init {
         readCache()
@@ -34,13 +36,14 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
     private fun checkForNewDate(key: Long?) {
         val executor = Executors.newSingleThreadExecutor()
         val stuffToDo = fun() {
-            var lastExit: String
             val cacheForChat = cache[key] ?: return
 
-            try {
-                cacheForChat[CACHE_KEY_LAST_CHECK] = SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date())
-                val rendezVousInfo = moreRecentRDVChecker.maybeGetNewDate(cacheForChat["url"]!!)
-                lastExit = if (rendezVousInfo.newDateIsBetter()) {
+            val chat = cacheForChat["chat"] as Chat?
+            LOGGER.info("[{}][{} {}] Checking for better rdv", chat?.userName, chat?.firstName, chat?.lastName)
+            cacheForChat[CACHE_KEY_LAST_CHECK] = SimpleDateFormat("yyyy-MM-dd HH:mm").format(Date())
+            val rendezVousInfoResult = moreRecentRDVChecker.maybeGetNewDate(cacheForChat["url"]?.toString()!!)
+            rendezVousInfoResult.fold({ rendezVousInfo: RendezVous ->
+                cacheForChat["lastExit"] = if (rendezVousInfo.newDateIsBetter()) {
                     "New date found:" + rendezVousInfo.newPossibleDate
                 } else {
                     "New date was in the future: " + rendezVousInfo.newPossibleDate
@@ -52,13 +55,22 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
                             .format("Data migliore disponibile: %s; data precedente: %s", rendezVousInfo.newPossibleDate,
                                     rendezVousInfo.rdvDate))
                 }
-            } catch (e: IOException) {
-                lastExit = "Failure: " + e.message
-                LOGGER.error("Error occurred", e)
-            }
+            }, { e ->
+                when(e) {
+                    is RdvExpired -> {
+                        cacheForChat["lastExit"] = "Rdv expired "
+                        sendTextMessage(key!!, "Your RDV already took place, stopping bot")
+                        LOGGER.info("[{}][{} {}] Removing from cache because of expired RDV", chat?.userName, chat?.firstName, chat?.lastName)
+                        cache.remove(key)
+                        saveCache()
+                    }
+                    else -> {
+                        cacheForChat["lastExit"] = "Failure: " + e.message
+                        LOGGER.error("Error occurred", e)
+                    }
+                }
 
-            cacheForChat["lastExit"] = lastExit
-
+            })
         }
         val future = executor.submit(stuffToDo)
         try {
@@ -86,21 +98,28 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
                 urlValidator.isValid(message) -> {
                     sendTextMessage(chatId!!, "Working on it")
                     cache.computeIfAbsent(chatId) { _ -> mutableMapOf() }["url"] = message
+                    cache[chatId]?.set("chat", update.message.chat)
                     saveCache()
                     checkForNewDate(chatId)
                 }
                 message.toLowerCase().startsWith("/start") -> sendTextMessage(chatId!!, "BOT started, send me a web address")
                 else -> {
-                    val currentCache: Map<String, String> = cache.getOrDefault(chatId, emptyMap())
+                    val currentCache: MutableMap<String, Any> = cache.getOrDefault(chatId, HashMap<String, Any>() as MutableMap<String, Any>)
                     when {
                         message.toLowerCase().startsWith("/lastcheck") ->
-                            sendTextMessage(chatId!!, "Last check: " + (currentCache as MutableMap<String, String>).getOrDefault(CACHE_KEY_LAST_CHECK, ""))
-                        message.toLowerCase().startsWith("/lastexit") -> sendTextMessage(chatId!!, "Last exit: " + (currentCache as MutableMap<String, String>)
+                            sendTextMessage(chatId!!, "Last check: " + currentCache.getOrDefault(CACHE_KEY_LAST_CHECK, ""))
+                        message.toLowerCase().startsWith("/lastexit") -> sendTextMessage(chatId!!, "Last exit: " + currentCache
                                 .getOrDefault("lastExit", ""))
                         message.toLowerCase().startsWith("/rdvinfo") -> sendTextMessage(chatId!!, String.format("Last check: %s;%nnext date: %s;%ncurrent rdv: %s",
                                 currentCache.getOrDefault(CACHE_KEY_LAST_CHECK, ""),
                                 currentCache.getOrDefault("newDate", ""),
                                 currentCache.getOrDefault("rdvDate", "")))
+                        message.toLowerCase().startsWith("/stop") -> {
+                            sendTextMessage(chatId!!, "OK, I won't check your RDV anymore. If you want to resume checking, please send me the link again")
+                            LOGGER.info("[{}][{} {}] Removing from cache because of user request", update.message.chat?.userName, update.message.chat?.firstName, update.message.chat?.lastName)
+                            cache.remove(chatId)
+                            saveCache()
+                        }
                         else -> sendTextMessage(chatId!!,
                                 "Sorry, I don't know what you're talking about. Send me an URL maybe?")
                     }
@@ -112,7 +131,7 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
     private fun readCache() {
         try {
             @Suppress("UNCHECKED_CAST")
-            ObjectInputStream(FileInputStream(botConfig.cacheFile())).use { stream -> cache.putAll(stream.readObject() as Map<Long, MutableMap<String, String>>) }
+            ObjectInputStream(FileInputStream(botConfig.cacheFile())).use { stream -> cache.putAll(stream.readObject() as Map<Long, MutableMap<String, Any>>) }
         } catch (e: IOException) {
             LOGGER.error("Error while reading cache:", e)
         } catch (e: ClassNotFoundException) {

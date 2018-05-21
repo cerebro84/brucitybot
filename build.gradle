@@ -25,6 +25,7 @@ repositories {
 
     maven { url "http://repo.maven.apache.org/maven2" }
     mavenCentral()
+    jcenter()
 }
 dependencies {
     compile group: 'org.telegram', name: 'telegrambots', version: '3.5'
@@ -33,6 +34,7 @@ dependencies {
     compile group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.4'
     compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.11.0'
     compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.11.0'
+    compile 'com.github.kittinunf.result:result:1.4.0' //for jvm
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
 }
 buildscript {
