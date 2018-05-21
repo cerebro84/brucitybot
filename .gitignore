@@ -19,3 +19,6 @@ src/test/
 target/classes/com/
 target/webtextbot-1.0-SNAPSHOT-jar-with-dependencies.jar
 target/webtextbot-1.0-SNAPSHOT.jar
+out/
+*.iml
+*.bcb
