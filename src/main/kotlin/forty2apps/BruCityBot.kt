@@ -30,7 +30,7 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
                 LOGGER.info("Checking for new date")
                 checkForNewDate(chatId)
             }
-        }, 0, 120, TimeUnit.SECONDS)
+        }, 0, 600, TimeUnit.SECONDS)
     }
 
     private fun checkForNewDate(key: Long?) {
@@ -52,7 +52,7 @@ internal class BruCityBot(private val botConfig: BotConfig) : TelegramLongPollin
                 cacheForChat["rdvDate"] = rendezVousInfo.rdvDate.toString()
                 if (rendezVousInfo.newDateIsBetter()) {
                     sendTextMessage(key!!, String
-                            .format("Data migliore disponibile: %s; data precedente: %s", rendezVousInfo.newPossibleDate,
+                            .format("A better date is available: %s; previous date: %s", rendezVousInfo.newPossibleDate,
                                     rendezVousInfo.rdvDate))
                 }
             }, { e ->

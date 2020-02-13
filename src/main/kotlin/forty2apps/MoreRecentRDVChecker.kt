@@ -2,6 +2,7 @@ package forty2apps
 
 import com.github.kittinunf.result.Result
 import org.apache.commons.io.IOUtils
+import org.apache.commons.text.StringEscapeUtils
 import org.apache.http.client.config.CookieSpecs
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.HttpGet
@@ -30,8 +31,9 @@ internal class MoreRecentRDVChecker {
                 .build()
         val httpGet = HttpGet(url)
         LOGGER.info("Retrieving page")
-        val html = IOUtils
-                .toString(httpclient.execute(httpGet).entity.content, "UTF-8")
+
+        val html = StringEscapeUtils.unescapeHtml4(IOUtils
+                .toString(httpclient.execute(httpGet).entity.content, "UTF-8"))
         val nextAvailableRdvMatcher = nextAvailableRdvPattern.matcher(html)
         if (nextAvailableRdvMatcher.matches()) {
             val nextDate = nextAvailableRdvMatcher.group(1)
